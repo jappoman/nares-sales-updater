@@ -10,9 +10,9 @@ def sql_literal(value) -> str:
     if isinstance(value, bool):
         return "1" if value else "0"
     if isinstance(value, datetime.datetime):
-        return "'" + value.strftime("%Y-%m-%d %H:%M:%S") + "'"
+        return "'" + value.strftime("%Y%m%d %H:%M:%S") + "'"
     if isinstance(value, datetime.date):
-        return "'" + value.strftime("%Y-%m-%d") + "'"
+        return "'" + value.strftime("%Y%m%d") + "'"
     if isinstance(value, (int, float)):
         return repr(value)
     text = str(value).replace("'", "''")

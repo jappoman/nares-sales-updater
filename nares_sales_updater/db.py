@@ -402,9 +402,12 @@ class SqlServerBackend:
         return [c for c in columns if c not in existing]
 
     def delete_range(self, table: str, key: str, date_from, date_to, mode: str) -> int:
-        sql = build_delete_sql(table, key, date_from, date_to, mode)
+        # I parametri ODBC preservano il tipo date/datetime ed evitano che SQL
+        # Server interpreti una stringa in base a SET LANGUAGE/DATEFORMAT.
+        condition, params = self._range_placeholders(key, date_from, date_to, mode)
+        sql = f"DELETE FROM [{table}] WHERE {condition}"
         cur = self.conn.cursor()
-        cur.execute(sql)
+        cur.execute(sql, params)
         return cur.rowcount if cur.rowcount != -1 else 0
 
     def insert_rows(self, table: str, columns: list[str], rows: list[dict]) -> int:
