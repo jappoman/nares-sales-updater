@@ -7,6 +7,7 @@ __pycache__/
 out/
 logs/
 *.session.json
+.nares_session*.json
 .pytest_cache/
 build/
 dist/

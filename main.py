@@ -75,7 +75,12 @@ def date_ranges(config: dict, date_from: str | None, date_to: str | None) -> dic
         for key in ("orders", "ordersByDate", "preventivi"):
             if key in ranges:
                 ranges[key] = {"date_from": from_date, "date_to": to_date}
-        ranges["ingressi"] = {"anno_from": from_date.year, "anno_to": to_date.year}
+        ranges["ingressi"] = {
+            "anno_from": from_date.year,
+            "anno_to": to_date.year,
+            "date_from": from_date,
+            "date_to": to_date,
+        }
     return ranges
 
 
@@ -102,9 +107,10 @@ def process_export(config: dict, export_key: str, path: Path, out_dir: Path,
 def write_sql_script(out_dir: Path, export_key: str, table: str, columns: list[str],
                      rows: list[dict], date_range: dict, delete_cfg: dict, strategy: str | None = None,
                      key_columns: list[str] | None = None) -> Path:
+    range_from = date_range.get("anno_from") if delete_cfg["mode"] == "year_range" else date_range.get("date_from")
+    range_to = date_range.get("anno_to") if delete_cfg["mode"] == "year_range" else date_range.get("date_to")
     delete_sql = sql_scripts.build_delete_sql(
-        table, delete_cfg["key"], date_range.get("date_from", date_range.get("anno_from")),
-        date_range.get("date_to", date_range.get("anno_to")), delete_cfg["mode"],
+        table, delete_cfg["key"], range_from, range_to, delete_cfg["mode"],
     )
     inserts = sql_scripts.build_insert_statements(table, columns, rows)
     strategy_note = ""
@@ -181,6 +187,28 @@ def run_live(config: dict, cleaned: dict[str, tuple[list[dict], list[str]]],
         backend.close()
 
 
+def cleanup_run_artifacts(files: dict[str, Path], out_dir: Path, config: dict, logger) -> None:
+    """Elimina solo i file intermedi generati da questa esecuzione gia confermata."""
+    download_root = (out_dir / "downloaded").resolve()
+    paths = {
+        path.resolve() for path in files.values()
+        if path.resolve().is_relative_to(download_root)
+    }
+    for export_key, spec in config["exports"].items():
+        paths.add(out_dir / "cleaned" / spec["download_name"])
+        paths.add(out_dir / "sql" / f"{export_key}.sql")
+
+    removed = 0
+    for path in paths:
+        try:
+            if path.is_file():
+                path.unlink()
+                removed += 1
+        except OSError as exc:
+            logger(f"  [warn] impossibile eliminare l'artefatto {path}: {exc}")
+    logger(f"Pulizia post-commit: eliminati {removed} file intermedi.")
+
+
 def run_job(date_from: str | None = None, date_to: str | None = None, *,
             live: bool = False, yes: bool = False, demo_db: str | None = None,
             use_files: str | None = None, no_download: bool = False,
@@ -207,6 +235,7 @@ def run_job(date_from: str | None = None, date_to: str | None = None, *,
             run_demo_db(Path(demo_db), config, cleaned, ranges, logger)
         elif live:
             run_live(config, cleaned, ranges, yes, logger)
+            cleanup_run_artifacts(files, out, config, logger)
         else:
             logger("DRY-RUN: nessuna scrittura su database (usa --demo-db per la demo SQLite o --live per il DB reale).")
 

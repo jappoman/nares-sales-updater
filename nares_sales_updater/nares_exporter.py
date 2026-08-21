@@ -1,18 +1,17 @@
 """Esecuzione delle 4 estrazioni NARES (menu -> servizi -> export).
 
 Nota: i selettori e gli URL del portale NARES vanno calibrati sul portale reale
-(la prima esecuzione live mostrerà eventuali differenze). Tutto è configurabile
+(la prima esecuzione live mostrera eventuali differenze). Tutto e configurabile
 in config.json -> nares.
 """
 from __future__ import annotations
 
-import json
 import time
 from datetime import date
 from pathlib import Path
 
-from .browser import CdpBrowser, NaresSession, SESSION_CACHE_NAME
 from . import config as cfg
+from .browser import CdpBrowser, NaresSession, SESSION_CACHE_NAME
 from .config import ConfigError
 
 
@@ -49,9 +48,9 @@ class ExportPage:
     def _set_input(self, selector: str, value: str) -> str:
         return self._js(f"""
         (() => {{
-          const setValue = (element, value) => {{
+          const setValue = (element, nextValue) => {{
             const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
-            setter.call(element, value);
+            setter.call(element, nextValue);
             element.dispatchEvent(new Event("input", {{ bubbles: true }}));
             element.dispatchEvent(new Event("change", {{ bubbles: true }}));
           }};
@@ -75,16 +74,57 @@ class ExportPage:
         }})()
         """)
 
+    def _click_confirm(self) -> str:
+        return self._js("""
+        (() => {
+          const btn = [...document.querySelectorAll("button,input[type=submit],a")]
+            .find(b => /conferma/i.test((b.innerText || b.value || "")));
+          if (!btn) return "CONFIRM_BUTTON_NOT_FOUND";
+          btn.click();
+          return "OK";
+        })()
+        """)
+
+    def _click_menu_export(self) -> str:
+        return self._js("""
+        (() => {
+          const link = [...document.querySelectorAll("a[onclick]")]
+            .find(a => (a.innerText || "").trim() === "Export" &&
+              /Servizi\\s*>\\s*Export/.test(a.getAttribute("onclick") || ""));
+          if (!link) return "EXPORT_MENU_NOT_FOUND";
+          link.click();
+          return "OK";
+        })()
+        """)
+
+    def _date_selectors_for(self, export_key: str) -> tuple[str, str]:
+        selectors = {
+            "orders": ("#dataordineda_input", "#dataordinea_input"),
+            "ordersByDate": ("#dataconsegnada_input", "#dataconsegnaa_input"),
+            "preventivi": ("#datapreventivoda_input", "#datapreventivoa_input"),
+            "ingressi": ("#dataDal", "#dataAl"),
+        }
+        try:
+            return selectors[export_key]
+        except KeyError as exc:
+            raise ConfigError(f"Export '{export_key}': selettori data non configurati") from exc
+
     # -- flusso --------------------------------------------------------------
     def open_export_page(self) -> None:
-        export_url = self.nares.get("export_url", self.nares["portal_base"] + "/pages/export.jsf")
-        self.browser.navigate(export_url, wait_seconds=5)
+        self.browser.navigate(self.nares["main_url"], wait_seconds=8)
+        result = self._click_menu_export()
+        if result != "OK":
+            raise ConfigError(f"Apertura Export: {result}")
+        self.browser.wait(6)
 
     def _wait_download(self, expected_names: list[str], wait_max: float = 180.0) -> Path:
         start = time.time()
         seen = set()
         while time.time() - start < wait_max:
-            files = {p for p in self.download_dir.iterdir() if p.is_file() and not p.name.endswith((".crdownload", ".tmp"))}
+            files = {
+                p for p in self.download_dir.iterdir()
+                if p.is_file() and not p.name.endswith((".crdownload", ".tmp"))
+            }
             for p in files:
                 if p.name in expected_names:
                     return p
@@ -105,50 +145,76 @@ class ExportPage:
             raise ConfigError(f"Export '{export_key}': {result} (verifica il selettore export_type_select)")
         self.browser.wait(1)
 
-        if "date_from" in date_range:
+        result = self._click_confirm()
+        if result != "OK":
+            raise ConfigError(f"Export '{export_key}': {result}")
+        self.browser.wait(6)
+
+        date_from_selector, date_to_selector = self._date_selectors_for(export_key)
+        if export_key == "ingressi" and "anno_from" in date_range:
+            for selector, value in (
+                (date_from_selector, str(date_range["anno_from"])),
+                (date_to_selector, str(date_range["anno_to"])),
+            ):
+                result = self._set_input(selector, value)
+                if result != "OK":
+                    raise ConfigError(f"Export '{export_key}': {result} (campo anno {selector})")
+        elif "date_from" in date_range and "date_to" in date_range:
             date_from: date = date_range["date_from"]
             date_to: date = date_range["date_to"]
             fmt = "%d/%m/%Y"
             for selector, value in (
-                (self.selectors["export_date_from"], date_from.strftime(fmt)),
-                (self.selectors["export_date_to"], date_to.strftime(fmt)),
+                (date_from_selector, date_from.strftime(fmt)),
+                (date_to_selector, date_to.strftime(fmt)),
             ):
                 result = self._set_input(selector, value)
                 if result != "OK":
                     raise ConfigError(f"Export '{export_key}': {result} (campo data {selector})")
         elif "anno_from" in date_range:
             for selector, value in (
-                (self.selectors["export_anno_from"], str(date_range["anno_from"])),
-                (self.selectors["export_anno_to"], str(date_range["anno_to"])),
+                (date_from_selector, f"01/01/{date_range['anno_from']}"),
+                (date_to_selector, f"31/12/{date_range['anno_to']}"),
             ):
                 result = self._set_input(selector, value)
                 if result != "OK":
-                    raise ConfigError(f"Export '{export_key}': {result} (campo anno {selector})")
+                    raise ConfigError(f"Export '{export_key}': {result} (campo anno/data {selector})")
 
         if export_key == "ordersByDate":
-            societa = self.nares.get("societa_orders_by_date", "GENESI RETAIL SRL")
-            result = self._set_select(self.selectors["export_societa"], societa)
+            result = self._js(f"""
+            (() => {{
+              const box = document.querySelector({self.selectors["export_societa"]!r});
+              if (!box) return "INPUT_NOT_FOUND";
+              if (!box.checked) box.click();
+              return "OK";
+            }})()
+            """)
             if result != "OK":
-                raise ConfigError(f"Export 'ordersByDate': {result} (campo società)")
+                raise ConfigError(f"Export 'ordersByDate': {result} (campo societa)")
 
         result = self._click_export()
         if result != "OK":
             raise ConfigError(f"Export '{export_key}': {result}")
-        return self._wait_download([spec["download_name"]])
+        # Il rapportino annuale contiene tutti i negozi e richiede piu tempo
+        # degli altri export lato NARES.
+        wait_max = 420.0 if export_key == "ingressi" else 180.0
+        return self._wait_download([spec["download_name"]], wait_max=wait_max)
 
 
 def download_all_exports(config: dict, credentials: dict, date_ranges: dict,
                          download_dir: Path, logger=print) -> dict[str, Path]:
     """Scarica i 4 file. Ritorna {export_key: path}."""
     session = NaresSession(config, credentials, cfg.APP_DIR / SESSION_CACHE_NAME)
-    session.login()
+    cookies = session.login()
     browser = CdpBrowser(detect_edge_path_safe(config))
     try:
         browser.start(download_dir=download_dir)
+        browser.set_cookies(cookies)
         page = ExportPage(browser, config, download_dir, logger)
-        page.open_export_page()
         results = {}
         for key, spec in config["exports"].items():
+            # Dopo ogni download NARES resta sul form specifico dell'export:
+            # rientriamo dal menu JSF per poter scegliere il successivo.
+            page.open_export_page()
             results[key] = page.run_export(key, spec, date_ranges[key])
         return results
     finally:

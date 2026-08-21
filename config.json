@@ -1,8 +1,8 @@
 {
   "nares": {
-    "portal_base": "https://www.nares.natuzzi.com/naresportal",
-    "login_url": "https://www.nares.natuzzi.com/naresportal/pages/login",
-    "main_url": "https://nares.natuzzi.com/naresportal/pages/main.jsf",
+    "portal_base": "https://nares.natuzzi.com/NaresPortal",
+    "login_url": "https://nares.natuzzi.com/NaresPortal/pages/login/loginUtente.jsf",
+    "main_url": "https://nares.natuzzi.com/NaresPortal/pages/main.jsf",
     "username_env": "NARES_USERNAME",
     "password_env": "NARES_PASSWORD",
     "societa_orders_by_date": "GENESI RETAIL SRL",
@@ -10,13 +10,13 @@
       "username_input": "input[name='username']",
       "password_input": "input[name='password']",
       "login_button": "input[type='submit']",
-      "export_type_select": "select[name='exp']",
-      "export_date_from": "input[name='datada']",
-      "export_date_to": "input[name='dataa']",
-      "export_anno_from": "input[name='annoda']",
-      "export_anno_to": "input[name='annoa']",
-      "export_societa": "select[name='soc']",
-      "export_submit": "input[type='submit'][value*='export' i]"
+      "export_type_select": "#tipoexport_input",
+      "export_date_from": "",
+      "export_date_to": "",
+      "export_anno_from": "",
+      "export_anno_to": "",
+      "export_societa": "input[name='societa']",
+      "export_submit": "#download"
     }
   },
   "sql": {

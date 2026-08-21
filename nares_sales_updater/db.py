@@ -121,8 +121,12 @@ def apply_strategy(backend, spec: dict, columns: list[str], rows: list[dict], da
         return 0, 0
 
     delete_cfg = spec["delete"]
-    date_from = date_range.get("date_from", date_range.get("anno_from"))
-    date_to = date_range.get("date_to", date_range.get("anno_to"))
+    if delete_cfg["mode"] == "year_range":
+        date_from = date_range["anno_from"]
+        date_to = date_range["anno_to"]
+    else:
+        date_from = date_range["date_from"]
+        date_to = date_range["date_to"]
     if spec.get("strategy") == "upsert":
         key_columns = spec["key_columns"]
         ensure_unique_keys(rows, key_columns, spec["table"])

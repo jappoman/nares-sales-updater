@@ -32,6 +32,7 @@ class CdpBrowser:
         self.websocket = None
         self._message_ids = itertools.count(1)
         self._download_dir: Path | None = None
+        self._events: list[dict] = []
 
     def start(self, download_dir: Path | None = None) -> None:
         self._download_dir = download_dir
@@ -89,6 +90,8 @@ class CdpBrowser:
             response = json.loads(self.websocket.recv())
             if response.get("id") == message_id:
                 return response
+            if response.get("method"):
+                self._events.append(response)
 
     def send(self, method: str, params: dict | None = None) -> dict:
         message_id = next(self._message_ids)
@@ -110,8 +113,37 @@ class CdpBrowser:
         )
         return result["result"]["result"].get("value")
 
+    def take_events(self) -> list[dict]:
+        """Scarica gli eventi CDP ricevuti dall'ultima lettura."""
+        events = self._events
+        self._events = []
+        return events
+
     def get_cookies(self, urls: list[str]) -> list[dict]:
         return self.send("Network.getCookies", {"urls": urls})["result"]["cookies"]
+
+    def set_cookies(self, cookies: list[dict]) -> None:
+        payload = []
+        for cookie in cookies:
+            item = {
+                "name": cookie["name"],
+                "value": cookie["value"],
+            }
+            if cookie.get("domain"):
+                item["domain"] = cookie["domain"]
+            if cookie.get("path"):
+                item["path"] = cookie["path"]
+            if cookie.get("expires"):
+                item["expires"] = cookie["expires"]
+            if cookie.get("httpOnly") is not None:
+                item["httpOnly"] = cookie["httpOnly"]
+            if cookie.get("secure") is not None:
+                item["secure"] = cookie["secure"]
+            if cookie.get("sameSite"):
+                item["sameSite"] = cookie["sameSite"]
+            payload.append(item)
+        if payload:
+            self.send("Network.setCookies", {"cookies": payload})
 
 
 EDGE_CANDIDATES = [
@@ -214,6 +246,82 @@ class NaresSession:
         selectors = nares["selectors"]
         browser.navigate(nares["login_url"], wait_seconds=6)
 
+        preflight = browser.evaluate(
+            """
+        (() => {
+          const href = location.href || "";
+          const title = document.title || "";
+          const body = (document.body && document.body.innerText ? document.body.innerText : "").slice(0, 1000);
+          return {
+            href,
+            title,
+            body,
+            hasUsername: !!document.querySelector("input[name='username']"),
+            hasPassword: !!document.querySelector("input[name='password']"),
+            hasEnter: !!(document.querySelector("#enterAuthentik") ||
+              [...document.querySelectorAll("button,input[type=submit],input[type=button]")]
+                .find(b => /enter/i.test(b.innerText || b.value || "")))
+          };
+        })()
+        """
+        ) or {}
+        body_text = str(preflight.get("body") or "")
+        title = str(preflight.get("title") or "")
+        href = str(preflight.get("href") or "")
+
+        if "chrome-error://" in href or "DNS_PROBE_FINISHED_NXDOMAIN" in body_text:
+            raise RuntimeError(
+                f"Login NARES: URL non raggiungibile ({href or nares['login_url']}). "
+                "Controlla host/path in config.json."
+            )
+        if "404 Not Found" in title or "404 Not Found" in body_text:
+            raise RuntimeError(
+                f"Login NARES: pagina non trovata ({href or nares['login_url']}). "
+                "Verifica login_url in config.json."
+            )
+
+        if preflight.get("hasEnter") and not (preflight.get("hasUsername") and preflight.get("hasPassword")):
+            enter_result = browser.evaluate(
+                """
+            (() => {
+              const btn = document.querySelector("#enterAuthentik") ||
+                [...document.querySelectorAll("button,input[type=submit],input[type=button]")]
+                  .find(b => /enter/i.test(b.innerText || b.value || ""));
+              if (!btn) return "ENTER_NOT_FOUND";
+              btn.click();
+              return "ENTER_CLICKED";
+            })()
+            """
+            )
+            if enter_result != "ENTER_CLICKED":
+                raise RuntimeError(
+                    f"Login NARES: pulsante ENTER non trovato ({enter_result}). Verifica i selettori/config."
+                )
+            browser.wait(8)
+
+        username_stage = f"""
+        (() => {{
+          const setValue = (element, value) => {{
+            const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+            setter.call(element, value);
+            element.dispatchEvent(new Event("input", {{ bubbles: true }}));
+            element.dispatchEvent(new Event("change", {{ bubbles: true }}));
+          }};
+          const stage = document.querySelector("ak-flow-executor")?.shadowRoot?.querySelector("ak-stage-identification");
+          const root = stage?.shadowRoot;
+          if (!root) return "STAGE_NOT_FOUND";
+          const user = root.querySelector("input[name='uidField']");
+          const btn = root.querySelector("button[type='submit']");
+          if (!user || !btn) return "USERNAME_STAGE_FIELDS_NOT_FOUND";
+          setValue(user, {self.credentials["username"]!r});
+          btn.click();
+          return "USERNAME_SUBMITTED";
+        }})()
+        """
+        username_result = browser.evaluate(username_stage)
+        if username_result == "USERNAME_SUBMITTED":
+            browser.wait(6)
+
         fill = f"""
         (() => {{
           const setValue = (element, value) => {{
@@ -222,23 +330,45 @@ class NaresSession:
             element.dispatchEvent(new Event("input", {{ bubbles: true }}));
             element.dispatchEvent(new Event("change", {{ bubbles: true }}));
           }};
+          const passwordStage = document.querySelector("ak-flow-executor")?.shadowRoot?.querySelector("ak-stage-password");
+          const passwordRoot = passwordStage?.shadowRoot;
+          const pwd = passwordRoot?.querySelector("input[name='password']") ||
+                      document.querySelector({selectors["password_input"]!r});
+          const btn = passwordRoot?.querySelector("button[type='submit']") ||
+                      document.querySelector({selectors["login_button"]!r}) ||
+                      [...document.querySelectorAll("button")].find(b => /entra|login|accedi|invia|continua/i.test(b.innerText));
           const user = document.querySelector({selectors["username_input"]!r});
-          const pwd = document.querySelector({selectors["password_input"]!r});
-          const btn = document.querySelector({selectors["login_button"]!r}) ||
-                      [...document.querySelectorAll("button")].find(b => /entra|login|accedi|invia/i.test(b.innerText));
-          if (!user || !pwd) return "FIELDS_NOT_FOUND";
-          setValue(user, {self.credentials["username"]!r});
+          if (!pwd) return "PASSWORD_NOT_FOUND";
+          if (user) setValue(user, {self.credentials["username"]!r});
           setValue(pwd, {self.credentials["password"]!r});
-          btn?.click();
+          if (btn) {{
+            btn.click();
+            return "SUBMITTED";
+          }}
+          pwd.dispatchEvent(new KeyboardEvent("keydown", {{ key: "Enter", code: "Enter", bubbles: true }}));
+          pwd.dispatchEvent(new KeyboardEvent("keypress", {{ key: "Enter", code: "Enter", bubbles: true }}));
+          pwd.dispatchEvent(new KeyboardEvent("keyup", {{ key: "Enter", code: "Enter", bubbles: true }}));
           return "SUBMITTED";
         }})()
         """
         result = browser.evaluate(fill)
         if result != "SUBMITTED":
-            raise RuntimeError(f"Login NARES: campi non trovati ({result}). Verifica i selettori in config.json.")
+            details = browser.evaluate(
+                """
+            (() => ({
+              href: location.href || "",
+              title: document.title || "",
+              body: (document.body && document.body.innerText ? document.body.innerText : "").slice(0, 1000)
+            }))()
+            """
+            ) or {}
+            raise RuntimeError(
+                f"Login NARES: campi non trovati ({result}). URL={details.get('href', '')}. "
+                "Verifica login_url e selettori in config.json."
+            )
         browser.wait(10)
         current_url = str(browser.evaluate("location.href") or "")
-        if "login" in current_url.lower():
+        if "login" in current_url.lower() or "flow/auth" in current_url.lower():
             raise RuntimeError(
                 f"Login NARES fallito (URL rimasto sulla pagina di login: {current_url}). "
                 "Controlla le credenziali in .env."
