@@ -106,13 +106,13 @@ def process_export(config: dict, export_key: str, path: Path, out_dir: Path,
 
 def write_sql_script(out_dir: Path, export_key: str, table: str, columns: list[str],
                      rows: list[dict], date_range: dict, delete_cfg: dict, strategy: str | None = None,
-                     key_columns: list[str] | None = None) -> Path:
+                     key_columns: list[str] | None = None, database: str = "GenesiRetail") -> Path:
     range_from = date_range.get("anno_from") if delete_cfg["mode"] == "year_range" else date_range.get("date_from")
     range_to = date_range.get("anno_to") if delete_cfg["mode"] == "year_range" else date_range.get("date_to")
     delete_sql = sql_scripts.build_delete_sql(
-        table, delete_cfg["key"], range_from, range_to, delete_cfg["mode"],
+        f"dbo.{table}", delete_cfg["key"], range_from, range_to, delete_cfg["mode"],
     )
-    inserts = sql_scripts.build_insert_statements(table, columns, rows)
+    inserts = sql_scripts.build_insert_statements(f"dbo.{table}", columns, rows)
     strategy_note = ""
     if strategy == "upsert":
         strategy_note = (
@@ -122,7 +122,7 @@ def write_sql_script(out_dir: Path, export_key: str, table: str, columns: list[s
     else:
         strategy_note = "-- strategia: DELETE + INSERT\n"
     text = "\n".join(
-        [f"-- {export_key}: {len(rows)} righe", strategy_note.rstrip(), delete_sql, ""] + inserts
+        [f"USE [{database}];", "GO", "", f"-- {export_key}: {len(rows)} righe", strategy_note.rstrip(), delete_sql, ""] + inserts
     ) + "\n"
     path = out_dir / "sql" / f"{export_key}.sql"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -227,7 +227,8 @@ def run_job(date_from: str | None = None, date_to: str | None = None, *,
             rows, columns, _stats = process_export(config, key, files[key], out, logger)
             spec = config["exports"][key]
             write_sql_script(out, key, spec["table"], columns, rows,
-                             ranges[key], spec["delete"], spec.get("strategy"), spec.get("key_columns"))
+                             ranges[key], spec["delete"], spec.get("strategy"), spec.get("key_columns"),
+                             config["sql"]["database"])
             cleaned[key] = (rows, columns)
         logger("Script SQL scritti in out/sql/")
 

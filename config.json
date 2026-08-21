@@ -50,6 +50,14 @@
         "NetPrice",
         "InvoicedNetPrice",
         "GrossWeight"
+      ],
+      "integer_columns": [
+        "QuotationNumber", "OrderNumber", "ConsumerID", "SeatsTradeIn", "DeliveryNumber",
+        "TaxRate", "Packages", "Quantities", "InvoicedQuantities"
+      ],
+      "boolean_text_columns": [
+        "ConsumerMarketingAgreement", "ConsumerProfilingAgreement", "ConsumerTeleMarketingAgreement",
+        "ConsumerThirdPartiesAgreement", "ConsumerPrivacyAgreement", "SoldFromWarehouse", "Gift"
       ]
     },
     "ordersByDate": {
@@ -80,6 +88,15 @@
         "AccontoContabilizzato",
         "saldo",
         "valoreAcquisto"
+      ],
+      "integer_columns": [
+        "idStatoOrdine", "idTipoOrdine", "numPreventivo", "numOrdine", "numOrdineRiferimento",
+        "idSeller", "idConsumer", "cdAffiliato", "numRate", "idTipoRiga", "cdCategoriaRivestimento",
+        "aliquotaIva", "cap", "consensoPrivacy", "idFonteAcquisto", "posizioneOrdine"
+      ],
+      "boolean_text_columns": [
+        "isProntaConsegna", "isOmaggio", "consensoMarketing", "consensoProfiling",
+        "consensoTeleMarketing", "consensoThirdParties"
       ]
     },
     "preventivi": {
@@ -119,7 +136,17 @@
         "seats",
         "row_amount",
         "proposal_amount"
-      ]
+      ],
+      "integer_columns": [
+        "quotation_nr", "store_code", "seller_id", "order_nr", "no_sale_reason_id", "consumer_id",
+        "proposal_nr", "row_nr", "article_type_id", "external_quotation_nr"
+      ],
+      "boolean_columns": [
+        "marketing_agreement", "profiling_agreement", "telemarketing_agreement", "third_parties_agreement",
+        "privacy_agreement", "from_stock"
+      ],
+      "date_columns": ["quotation_date", "expire_quotation_date"],
+      "datetime_columns": ["change_status_date"]
     },
     "ingressi": {
       "label": "rapportino visite",

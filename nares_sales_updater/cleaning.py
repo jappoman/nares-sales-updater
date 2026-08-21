@@ -83,6 +83,69 @@ def _apply_numerics(row: dict, numeric_columns: list[str]) -> dict:
     return row
 
 
+def _to_integer(value):
+    number = to_number(value)
+    return int(number) if number is not None else None
+
+
+def _to_boolean(value):
+    if value is None or str(value).strip() == "":
+        return None
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in {"1", "true", "y", "yes", "si", "sì"}:
+        return True
+    if text in {"0", "false", "n", "no"}:
+        return False
+    raise ConfigError(f"Valore booleano non valido: {value!r}")
+
+
+def _to_boolean_text(value):
+    """Mantiene il formato testuale richiesto dalle colonne varchar del DB."""
+    if isinstance(value, bool):
+        return "True" if value else "False"
+    return value
+
+
+def _to_date(value, *, with_time: bool):
+    if value is None or str(value).strip() == "":
+        return None
+    if isinstance(value, datetime.datetime):
+        return value if with_time else value.date()
+    if isinstance(value, datetime.date):
+        return datetime.datetime(value.year, value.month, value.day) if with_time else value
+    formats = ("%d/%m/%Y %H:%M", "%d/%m/%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%d/%m/%Y", "%Y-%m-%d")
+    for fmt in formats:
+        try:
+            parsed = datetime.datetime.strptime(str(value).strip(), fmt)
+            return parsed if with_time else parsed.date()
+        except ValueError:
+            continue
+    raise ConfigError(f"Data non valida: {value!r}")
+
+
+def _apply_column_types(rows: list[dict], spec: dict) -> list[dict]:
+    """Normalizza i valori secondo i tipi SQL documentati per l'export."""
+    for row in rows:
+        for col in spec.get("integer_columns", []):
+            if col in row:
+                row[col] = _to_integer(row[col])
+        for col in spec.get("boolean_columns", []):
+            if col in row:
+                row[col] = _to_boolean(row[col])
+        for col in spec.get("boolean_text_columns", []):
+            if col in row:
+                row[col] = _to_boolean_text(row[col])
+        for col in spec.get("date_columns", []):
+            if col in row:
+                row[col] = _to_date(row[col], with_time=False)
+        for col in spec.get("datetime_columns", []):
+            if col in row:
+                row[col] = _to_date(row[col], with_time=True)
+    return rows
+
+
 # ---------------------------------------------------------------------------
 # orders
 # ---------------------------------------------------------------------------
@@ -265,5 +328,7 @@ def clean_export(export_key: str, rows: list[dict], mapping: Mapping,
     blocklist = config.get("orders_blocklist", [])
     numeric = spec.get("numeric_columns", [])
     if export_key in ("orders", "ordersByDate"):
-        return cleaner(rows, mapping, blocklist, numeric)
-    return cleaner(rows, mapping, numeric)
+        cleaned, stats = cleaner(rows, mapping, blocklist, numeric)
+    else:
+        cleaned, stats = cleaner(rows, mapping, numeric)
+    return _apply_column_types(cleaned, spec), stats

@@ -8,7 +8,7 @@ def sql_literal(value) -> str:
     if value is None:
         return "NULL"
     if isinstance(value, bool):
-        return "'True'" if value else "'False'"
+        return "1" if value else "0"
     if isinstance(value, datetime.datetime):
         return "'" + value.strftime("%Y-%m-%d %H:%M:%S") + "'"
     if isinstance(value, datetime.date):
@@ -17,6 +17,11 @@ def sql_literal(value) -> str:
         return repr(value)
     text = str(value).replace("'", "''")
     return "'" + text + "'"
+
+
+def quote_table(table: str) -> str:
+    """Restituisce un nome tabella T-SQL quotato, anche se schema-qualificato."""
+    return ".".join(f"[{part.strip('[]')}]" for part in table.split("."))
 
 
 def build_range_condition(key: str, date_from, date_to, mode: str) -> str:
@@ -31,7 +36,7 @@ def build_range_condition(key: str, date_from, date_to, mode: str) -> str:
 
 
 def build_delete_sql(table: str, key: str, date_from, date_to, mode: str) -> str:
-    return f"DELETE FROM [{table}] WHERE {build_range_condition(key, date_from, date_to, mode)};"
+    return f"DELETE FROM {quote_table(table)} WHERE {build_range_condition(key, date_from, date_to, mode)};"
 
 
 def build_insert_statements(table: str, columns: list[str], rows: list[dict]) -> list[str]:
@@ -39,7 +44,7 @@ def build_insert_statements(table: str, columns: list[str], rows: list[dict]) ->
     statements = []
     for row in rows:
         values = ", ".join(sql_literal(row.get(c)) for c in columns)
-        statements.append(f"INSERT INTO [{table}] ({col_list}) VALUES ({values});")
+        statements.append(f"INSERT INTO {quote_table(table)} ({col_list}) VALUES ({values});")
     return statements
 
 

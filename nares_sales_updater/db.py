@@ -44,7 +44,7 @@ def _to_db_value(value):
     if isinstance(value, datetime.date):
         return value.strftime("%Y-%m-%d")
     if isinstance(value, bool):
-        return "True" if value else "False"
+        return value
     return value
 
 
