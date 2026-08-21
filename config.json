@@ -1,0 +1,851 @@
+{
+  "nares": {
+    "portal_base": "https://www.nares.natuzzi.com/naresportal",
+    "login_url": "https://www.nares.natuzzi.com/naresportal/pages/login",
+    "main_url": "https://nares.natuzzi.com/naresportal/pages/main.jsf",
+    "username_env": "NARES_USERNAME",
+    "password_env": "NARES_PASSWORD",
+    "societa_orders_by_date": "GENESI RETAIL SRL",
+    "selectors": {
+      "username_input": "input[name='username']",
+      "password_input": "input[name='password']",
+      "login_button": "input[type='submit']",
+      "export_type_select": "select[name='exp']",
+      "export_date_from": "input[name='datada']",
+      "export_date_to": "input[name='dataa']",
+      "export_anno_from": "input[name='annoda']",
+      "export_anno_to": "input[name='annoa']",
+      "export_societa": "select[name='soc']",
+      "export_submit": "input[type='submit'][value*='export' i]"
+    }
+  },
+  "sql": {
+    "server_env": "SQL_SERVER",
+    "database": "GenesiRetail",
+    "username_env": "SQL_USERNAME",
+    "password_env": "SQL_PASSWORD",
+    "driver": "",
+    "server_default": "btsrv-qr.bteam.local"
+  },
+  "exports": {
+    "orders": {
+      "label": "ordini",
+      "download_name": "orderExport.xlsx",
+      "sheet": "orders",
+      "table": "orders",
+      "date_from_offset_days": 120,
+      "date_to_offset_days": 1,
+      "delete": {
+        "key": "OrderDate",
+        "mode": "range"
+      },
+      "strategy": "delete_insert",
+      "numeric_columns": [
+        "TotalDeposits",
+        "Balance",
+        "Seats",
+        "Volume",
+        "GrossPice",
+        "DiscountAmount",
+        "NetPrice",
+        "InvoicedNetPrice",
+        "GrossWeight"
+      ]
+    },
+    "ordersByDate": {
+      "label": "ordini x data ordine",
+      "download_name": "OrdersByOrderDate.xlsx",
+      "sheet": "Orders by Order Date",
+      "table": "ordersByDate",
+      "date_from_offset_days": 120,
+      "date_to_offset_days": 1,
+      "delete": {
+        "key": "dtOrdine",
+        "mode": "range"
+      },
+      "strategy": "delete_insert",
+      "numeric_columns": [
+        "qtaOrdinata",
+        "totaleSedute",
+        "totalePesoNetto",
+        "totalePesoLordo",
+        "totaleVolume",
+        "selloutTeorico",
+        "sconto",
+        "importoScontatoNetto",
+        "importoScontato",
+        "selloutRealeNetto",
+        "selloutReale",
+        "Acconto",
+        "AccontoContabilizzato",
+        "saldo",
+        "valoreAcquisto"
+      ]
+    },
+    "preventivi": {
+      "label": "preventivi",
+      "download_name": "quotations.xls",
+      "sheet": "Quotation",
+      "table": "Preventivi",
+      "date_from_offset_days": 30,
+      "date_to_offset_days": 1,
+      "delete": {
+        "key": "quotation_date",
+        "mode": "open_ended_from"
+      },
+      "strategy": "upsert",
+      "key_columns": [
+        "quotation_nr",
+        "row_nr",
+        "proposal_nr"
+      ],
+      "mapping": {
+        "rule": "snake_case",
+        "drop_columns": [
+          "Movement ID"
+        ]
+      },
+      "numeric_columns": [
+        "quotation_nr",
+        "seller_id",
+        "consumer_id",
+        "order_nr",
+        "no_sale_reason_id",
+        "proposal_nr",
+        "row_nr",
+        "from_stock",
+        "article_type_id",
+        "quantities",
+        "seats",
+        "row_amount",
+        "proposal_amount"
+      ]
+    },
+    "ingressi": {
+      "label": "rapportino visite",
+      "download_name": "Rapportinovisite.xlsx",
+      "sheet": "Rapportino visite",
+      "table": "ingressi",
+      "anno_from_offset_years": 0,
+      "anno_to_offset_years": 0,
+      "delete": {
+        "key": "anno",
+        "mode": "year_range"
+      },
+      "strategy": "upsert",
+      "key_columns": [
+        "cdStore",
+        "data"
+      ],
+      "mapping": {
+        "rule": "derive_ingressi"
+      },
+      "numeric_columns": [
+        "cdStore",
+        "anno",
+        "mese",
+        "ingressi"
+      ]
+    }
+  },
+  "orders_blocklist": [
+    "15345527",
+    "15375154",
+    "15480497",
+    "15503397",
+    "15471071",
+    "15547189",
+    "15568336",
+    "15580894",
+    "14337195",
+    "15642881",
+    "15653167",
+    "15692949",
+    "15710991"
+  ],
+  "stored_procedure": "Create_ordersGlobal",
+  "mappings": {
+    "orders": {
+      "mode": "explicit",
+      "columns": [
+        {
+          "target": "OrderStatus",
+          "source": "OrderStatus"
+        },
+        {
+          "target": "OrderType",
+          "source": "OrderType"
+        },
+        {
+          "target": "QuotationNumber",
+          "source": "QuotationNumber"
+        },
+        {
+          "target": "OrderNumber",
+          "source": "OrderNumber"
+        },
+        {
+          "target": "Brand",
+          "source": "Brand"
+        },
+        {
+          "target": "OrderCreationDate",
+          "source": "OrderCreationDate"
+        },
+        {
+          "target": "TotalDeposits",
+          "source": "TotalDeposits"
+        },
+        {
+          "target": "Balance",
+          "source": "Balance"
+        },
+        {
+          "target": "SeatsTradeIn",
+          "source": "SeatsTradeIn"
+        },
+        {
+          "target": "SalesConsultandSurname",
+          "source": "SalesConsultandSurname"
+        },
+        {
+          "target": "SalesConsultantName",
+          "source": "SalesConsultantName"
+        },
+        {
+          "target": "ConsumerID",
+          "source": "ConsumerID"
+        },
+        {
+          "target": "ConsumerSurname",
+          "source": "ConsumerSurname"
+        },
+        {
+          "target": "ConsumerName",
+          "source": "ConsumerName"
+        },
+        {
+          "target": "ConsumerAddressType",
+          "source": "ConsumerAddressType"
+        },
+        {
+          "target": "ConsumerAddress",
+          "source": "ConsumerAddress"
+        },
+        {
+          "target": "ConsumerAddressNr",
+          "source": "ConsumerAddressNr"
+        },
+        {
+          "target": "ConsumerZipCode",
+          "source": "ConsumerZipCode"
+        },
+        {
+          "target": "ConsumerCity",
+          "source": "ConsumerCity"
+        },
+        {
+          "target": "ConsumerPlace",
+          "source": "ConsumerPlace"
+        },
+        {
+          "target": "ConsumerTelHome",
+          "source": "ConsumerTelHome"
+        },
+        {
+          "target": "ConsumerTelMobile",
+          "source": "ConsumerTelMobile"
+        },
+        {
+          "target": "ConsumerTelOffice",
+          "source": "ConsumerTelOffice"
+        },
+        {
+          "target": "ConsumerEMail",
+          "source": "ConsumerEMail"
+        },
+        {
+          "target": "ConsumerMarketingAgreement",
+          "source": "ConsumerMarketingAgreement"
+        },
+        {
+          "target": "ConsumerProfilingAgreement",
+          "source": "ConsumerProfilingAgreement"
+        },
+        {
+          "target": "ConsumerTeleMarketingAgreement",
+          "source": "ConsumerTeleMarketingAgreement"
+        },
+        {
+          "target": "ConsumerThirdPartiesAgreement",
+          "source": "ConsumerThirdPartiesAgreement"
+        },
+        {
+          "target": "ConsumerPrivacyAgreement",
+          "source": "ConsumerPrivacyAgreement"
+        },
+        {
+          "target": "ConsumerType",
+          "source": "ConsumerType"
+        },
+        {
+          "target": "FiscalIdCompany",
+          "source": "FiscalIdCompany"
+        },
+        {
+          "target": "FiscalIdPrivate",
+          "source": "FiscalIdPrivate"
+        },
+        {
+          "target": "Payer",
+          "source": "Payer"
+        },
+        {
+          "target": "Store",
+          "source": "Store"
+        },
+        {
+          "target": "OrderDate",
+          "source": "OrderDate"
+        },
+        {
+          "target": "RequestedDeliveryDate",
+          "source": "RequestedDeliveryDate"
+        },
+        {
+          "target": "RequestedDeliveryDateToConsumer",
+          "source": "RequestedDeliveryDateToConsumer"
+        },
+        {
+          "target": "MakeDefinitiveDate",
+          "source": "MakeDefinitiveDate"
+        },
+        {
+          "target": "CancelDate",
+          "source": "CancelDate"
+        },
+        {
+          "target": "OrderSAPCreationDate",
+          "source": "OrderSAPCreationDate"
+        },
+        {
+          "target": "DeliveryNumber",
+          "source": "DeliveryNumber"
+        },
+        {
+          "target": "DeliveryDateCreation",
+          "source": "DeliveryDateCreation"
+        },
+        {
+          "target": "WharehouseLastLoadDate",
+          "source": "WharehouseLastLoadDate"
+        },
+        {
+          "target": "CompleteReceivingDate",
+          "source": "CompleteReceivingDate"
+        },
+        {
+          "target": "AgreedDeliveryDate",
+          "source": "AgreedDeliveryDate"
+        },
+        {
+          "target": "GITDate",
+          "source": "GITDate"
+        },
+        {
+          "target": "DeliveryDate",
+          "source": "DeliveryDate"
+        },
+        {
+          "target": "DeliveryDateInsert",
+          "source": "DeliveryDateInsert"
+        },
+        {
+          "target": "PricelistCode",
+          "source": "PricelistCode"
+        },
+        {
+          "target": "ArticleType",
+          "source": "ArticleType"
+        },
+        {
+          "target": "SoldFromWarehouse",
+          "source": "SoldFromWarehouse"
+        },
+        {
+          "target": "Gift",
+          "source": "Gift"
+        },
+        {
+          "target": "ArticleCode",
+          "source": "ArticleCode"
+        },
+        {
+          "target": "Article",
+          "source": "Article"
+        },
+        {
+          "target": "PO",
+          "source": "PO"
+        },
+        {
+          "target": "AliasCode",
+          "source": "AliasCode"
+        },
+        {
+          "target": "CoveringCode",
+          "source": "CoveringCode"
+        },
+        {
+          "target": "CoveringCategoryCode",
+          "source": "CoveringCategoryCode"
+        },
+        {
+          "target": "TaxDescription",
+          "source": "TaxDescription"
+        },
+        {
+          "target": "TaxRate",
+          "source": "TaxRate"
+        },
+        {
+          "target": "Seats",
+          "source": "Seats"
+        },
+        {
+          "target": "Packages",
+          "source": "Packages"
+        },
+        {
+          "target": "Volume",
+          "source": "Volume"
+        },
+        {
+          "target": "VolumeUnitMesaure",
+          "source": "VolumeUnitMesaure"
+        },
+        {
+          "target": "Quantities",
+          "source": "Quantities"
+        },
+        {
+          "target": "GrossPice",
+          "source": "Pricelist"
+        },
+        {
+          "target": "Discount",
+          "source": "Discount"
+        },
+        {
+          "target": "DiscountAmount",
+          "source": "DiscountAmount"
+        },
+        {
+          "target": "NetPrice",
+          "source": "TotalPrice"
+        },
+        {
+          "target": "InvoicedQuantities",
+          "source": "InvoicedQuantities"
+        },
+        {
+          "target": "InvoicedNetPrice",
+          "source": "InvoicedNetPrice"
+        },
+        {
+          "target": "ConsumerProfile",
+          "source": "ConsumerProfile"
+        },
+        {
+          "target": "ArchitectPurchaseOrder",
+          "source": "ArchitectPurchaseOrder"
+        },
+        {
+          "target": "Note",
+          "source": "Note"
+        },
+        {
+          "target": "DeliveryNote",
+          "source": "DeliveryNote"
+        },
+        {
+          "target": "HistoryNote",
+          "source": "HistoryNote"
+        },
+        {
+          "target": "GrossWeight",
+          "source": "GrossWeight"
+        }
+      ]
+    },
+    "ordersByDate": {
+      "mode": "explicit",
+      "columns": [
+        {
+          "target": "idStatoOrdine",
+          "source": "idStatoOrdine"
+        },
+        {
+          "target": "statoOrdine",
+          "source": "statoOrdine"
+        },
+        {
+          "target": "idTipoOrdine",
+          "source": "idTipoOrdine"
+        },
+        {
+          "target": "tipoOrdine",
+          "source": "tipoOrdine"
+        },
+        {
+          "target": "Brand",
+          "source": "Brand"
+        },
+        {
+          "target": "numPreventivo",
+          "source": "numPreventivo"
+        },
+        {
+          "target": "cognomeSelQuotation",
+          "source": "cognomeSelQuotation"
+        },
+        {
+          "target": "nomeSelQuotation",
+          "source": "nomeSelQuotation"
+        },
+        {
+          "target": "numOrdine",
+          "source": "numOrdine"
+        },
+        {
+          "target": "numOrdineRiferimento",
+          "source": "numOrdineRiferimento"
+        },
+        {
+          "target": "idSeller",
+          "source": "idSeller"
+        },
+        {
+          "target": "cognomeSel",
+          "source": "cognomeSel"
+        },
+        {
+          "target": "nomeSel",
+          "source": "nomeSel"
+        },
+        {
+          "target": "idConsumer",
+          "source": "idConsumer"
+        },
+        {
+          "target": "cognomeCns",
+          "source": "cognomeCns"
+        },
+        {
+          "target": "nomeCns",
+          "source": "nomeCns"
+        },
+        {
+          "target": "cdStore",
+          "source": "cdStore"
+        },
+        {
+          "target": "store",
+          "source": "store"
+        },
+        {
+          "target": "cdAffiliato",
+          "source": "cdAffiliato"
+        },
+        {
+          "target": "dtOrdine",
+          "source": "dtOrdine"
+        },
+        {
+          "target": "dtRichiesta",
+          "source": "dtRichiesta"
+        },
+        {
+          "target": "dtMakeDefinitive",
+          "source": "dtMakeDefinitive"
+        },
+        {
+          "target": "dtCancel",
+          "source": "dtCancel"
+        },
+        {
+          "target": "CompleteReceivingDate",
+          "source": "CompleteReceivingDate"
+        },
+        {
+          "target": "tipoFinanziamento",
+          "source": "tipoFinanziamento"
+        },
+        {
+          "target": "numRate",
+          "source": "numRate"
+        },
+        {
+          "target": "importoDaFinanziare",
+          "source": "importoDaFinanziare"
+        },
+        {
+          "target": "idTipoRiga",
+          "source": "idTipoRiga"
+        },
+        {
+          "target": "cdListino",
+          "source": "cdListino"
+        },
+        {
+          "target": "tipoRiga",
+          "source": "tipoRiga"
+        },
+        {
+          "target": "isProntaConsegna",
+          "source": "isProntaConsegna"
+        },
+        {
+          "target": "isOmaggio",
+          "source": "isOmaggio"
+        },
+        {
+          "target": "cdArticolo",
+          "source": "cdArticolo"
+        },
+        {
+          "target": "po",
+          "source": "po"
+        },
+        {
+          "target": "dtInvoiceB2B",
+          "source": "dtInvoiceB2B"
+        },
+        {
+          "target": "cdAlias",
+          "source": "cdAlias"
+        },
+        {
+          "target": "cdRivestimento",
+          "source": "cdRivestimento"
+        },
+        {
+          "target": "cdCategoriaRivestimento",
+          "source": "cdCategoriaRivestimento"
+        },
+        {
+          "target": "Iva",
+          "source": "Iva"
+        },
+        {
+          "target": "aliquotaIva",
+          "source": "aliquotaIva"
+        },
+        {
+          "target": "qtaOrdinata",
+          "source": "qtaOrdinata"
+        },
+        {
+          "target": "totaleSedute",
+          "source": "totaleSedute"
+        },
+        {
+          "target": "totalePesoNetto",
+          "source": "totalePesoNetto"
+        },
+        {
+          "target": "totalePesoLordo",
+          "source": "totalePesoLordo"
+        },
+        {
+          "target": "totaleVolume",
+          "source": "totaleVolume"
+        },
+        {
+          "target": "selloutTeorico",
+          "source": "selloutTeorico"
+        },
+        {
+          "target": "sconto",
+          "source": "sconto"
+        },
+        {
+          "target": "importoScontatoNetto",
+          "source": "importoScontatoNetto"
+        },
+        {
+          "target": "importoScontato",
+          "source": "importoScontato"
+        },
+        {
+          "target": "selloutRealeNetto",
+          "source": "selloutRealeNetto"
+        },
+        {
+          "target": "selloutReale",
+          "source": "selloutReale"
+        },
+        {
+          "target": "consensoMarketing",
+          "source": "consensoMarketing"
+        },
+        {
+          "target": "consensoProfiling",
+          "source": "consensoProfiling"
+        },
+        {
+          "target": "consensoTeleMarketing",
+          "source": "consensoTeleMarketing"
+        },
+        {
+          "target": "consensoThirdParties",
+          "source": "consensoThirdParties"
+        },
+        {
+          "target": "consensoPrivacy",
+          "source": "consensoPrivacy"
+        },
+        {
+          "target": "telefonoCasa",
+          "source": "telefonoCasa"
+        },
+        {
+          "target": "telefonoMobile",
+          "source": "telefonoMobile"
+        },
+        {
+          "target": "telefonoUfficio",
+          "source": "telefonoUfficio"
+        },
+        {
+          "target": "descrTipoVie",
+          "source": "descrTipoVie"
+        },
+        {
+          "target": "nomeVia",
+          "source": "nomeVia"
+        },
+        {
+          "target": "civicoVia",
+          "source": "civicoVia"
+        },
+        {
+          "target": "localita",
+          "source": "localita"
+        },
+        {
+          "target": "cap",
+          "source": "cap"
+        },
+        {
+          "target": "descrComune",
+          "source": "descrComune"
+        },
+        {
+          "target": "Acconto",
+          "source": "Acconto"
+        },
+        {
+          "target": "AccontoContabilizzato",
+          "source": "AccontoContabilizzato"
+        },
+        {
+          "target": "saldo",
+          "source": "saldo"
+        },
+        {
+          "target": "idFonteAcquisto",
+          "source": "idFonteAcquisto"
+        },
+        {
+          "target": "fonteAcquisto",
+          "source": "fonteAcquisto"
+        },
+        {
+          "target": "posizioneOrdine",
+          "source": "posizioneOrdine"
+        },
+        {
+          "target": "dataCaricoMagazzino",
+          "source": "dataCaricoMagazzino"
+        },
+        {
+          "target": "valoreAcquisto",
+          "source": "valoreAcquisto"
+        },
+        {
+          "target": "cdListinoAcquisto",
+          "source": "cdListinoAcquisto"
+        },
+        {
+          "target": "MetodiPagamentoAccontoContabilizzato",
+          "source": "MetodiPagamentoAccontoContabilizzato"
+        }
+      ]
+    },
+    "preventivi": {
+      "mode": "rule",
+      "rule": "snake_case",
+      "db_columns": [
+        "quotation_nr",
+        "sales_tool",
+        "quotation_status",
+        "brand",
+        "store_code",
+        "store",
+        "seller_id",
+        "seller",
+        "quotation_date",
+        "expire_quotation_date",
+        "order_nr",
+        "no_sale_reason_id",
+        "no_sale_reason",
+        "consumer_id",
+        "consumer",
+        "consumer_address_1",
+        "consumer_address_2",
+        "consumer_phone_1",
+        "consumer_phone_2",
+        "consumer_email",
+        "marketing_agreement",
+        "profiling_agreement",
+        "telemarketing_agreement",
+        "third_parties_agreement",
+        "privacy_agreement",
+        "proposal_nr",
+        "proposal_note",
+        "row_nr",
+        "from_stock",
+        "article_type_id",
+        "article_type",
+        "article_code",
+        "article",
+        "alias_code",
+        "first_covering_code",
+        "hard_foam",
+        "feet_finishing",
+        "unit_measure",
+        "quantities",
+        "seats",
+        "pricelist_code",
+        "currency_code",
+        "row_amount",
+        "proposal_amount",
+        "change_status_date",
+        "external_quotation_nr"
+      ]
+    },
+    "ingressi": {
+      "mode": "rule",
+      "rule": "derive_ingressi",
+      "db_columns": [
+        "cdStore",
+        "store",
+        "data",
+        "anno",
+        "mese",
+        "ingressi"
+      ]
+    }
+  }
+}

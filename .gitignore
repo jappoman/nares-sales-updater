@@ -1,0 +1,13 @@
+docs
+.env
+.venv/
+__pycache__/
+*.pyc
+.work/
+out/
+logs/
+*.session.json
+.pytest_cache/
+build/
+dist/
+*.spec
