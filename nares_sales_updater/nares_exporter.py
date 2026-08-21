@@ -117,7 +117,8 @@ class ExportPage:
             raise ConfigError(f"Apertura Export: {result}")
         self.browser.wait(6)
 
-    def _wait_download(self, expected_names: list[str], wait_max: float = 180.0) -> Path:
+    def _wait_download(self, expected_names: list[str], known_files: dict[Path, int],
+                       wait_max: float = 180.0) -> Path:
         start = time.time()
         seen = set()
         while time.time() - start < wait_max:
@@ -126,9 +127,19 @@ class ExportPage:
                 if p.is_file() and not p.name.endswith((".crdownload", ".tmp"))
             }
             for p in files:
-                if p.name in expected_names:
+                is_new = p.stat().st_mtime_ns > known_files.get(p, 0)
+                expected = next((name for name in expected_names if p.name == name), None)
+                # Edge aggiunge " (1)" se un file con lo stesso nome e' gia
+                # presente: accettiamo solo la nuova variante, mai il file stale.
+                if expected is None:
+                    expected = next(
+                        (name for name in expected_names
+                         if p.suffix == Path(name).suffix and p.stem.startswith(f"{Path(name).stem} (")),
+                        None,
+                    )
+                if expected and is_new:
                     return p
-                if p.name not in seen:
+                if is_new and p.name not in seen:
                     seen.add(p.name)
                     self.logger(f"Download in corso: {p.name}")
             time.sleep(2)
@@ -191,13 +202,18 @@ class ExportPage:
             if result != "OK":
                 raise ConfigError(f"Export 'ordersByDate': {result} (campo societa)")
 
+        known_files = {
+            p: p.stat().st_mtime_ns
+            for p in self.download_dir.iterdir()
+            if p.is_file()
+        }
         result = self._click_export()
         if result != "OK":
             raise ConfigError(f"Export '{export_key}': {result}")
         # Il rapportino annuale contiene tutti i negozi e richiede piu tempo
         # degli altri export lato NARES.
         wait_max = 420.0 if export_key == "ingressi" else 180.0
-        return self._wait_download([spec["download_name"]], wait_max=wait_max)
+        return self._wait_download([spec["download_name"]], known_files, wait_max=wait_max)
 
 
 def download_all_exports(config: dict, credentials: dict, date_ranges: dict,

@@ -455,19 +455,26 @@ class SqlServerBackend:
         missing = existing - incoming
         if not missing:
             return 0
-        clauses, params = [], []
-        for key in sorted(missing):
-            sub = []
-            for col, part in zip(key_columns, key):
-                if part is None:
-                    sub.append(f"({self._quote(col)} IS NULL OR {self._quote(col)} = '')")
-                else:
-                    sub.append(f"{self._quote(col)} = ?")
-                    params.append(part)
-            clauses.append(" AND ".join(sub))
-        sql = f"DELETE FROM [{table}] WHERE ({') OR ('.join(clauses)}) AND ({range_sql})"
-        cur.execute(sql, params + range_params)
-        return cur.rowcount if cur.rowcount != -1 else len(missing)
+        # SQL Server accetta al massimo 2.100 parametri per comando. Un report
+        # annuale puo avere migliaia di righe stale, quindi cancelliamo a blocchi.
+        deleted = 0
+        missing_keys = sorted(missing)
+        for start in range(0, len(missing_keys), 500):
+            clauses, params = [], []
+            batch = missing_keys[start:start + 500]
+            for key in batch:
+                sub = []
+                for col, part in zip(key_columns, key):
+                    if part is None:
+                        sub.append(f"({self._quote(col)} IS NULL OR {self._quote(col)} = '')")
+                    else:
+                        sub.append(f"{self._quote(col)} = ?")
+                        params.append(part)
+                clauses.append(" AND ".join(sub))
+            sql = f"DELETE FROM [{table}] WHERE ({') OR ('.join(clauses)}) AND ({range_sql})"
+            cur.execute(sql, params + range_params)
+            deleted += cur.rowcount if cur.rowcount != -1 else len(batch)
+        return deleted
 
     def upsert_rows(self, table: str, columns: list[str], key_columns: list[str], rows: list[dict],
                     delete_key: str, date_from, date_to, mode: str) -> tuple[int, int]:

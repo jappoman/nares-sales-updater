@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 from nares_sales_updater import cleaning
-from nares_sales_updater.db import SqliteBackend, apply_strategy, ensure_unique_keys
+from nares_sales_updater.db import SqlServerBackend, SqliteBackend, apply_strategy, ensure_unique_keys
 from nares_sales_updater.demo import load_sample_table
 
 from conftest import DB_SAMPLE_DIR
@@ -169,3 +169,38 @@ def test_ensure_unique_keys_detects_duplicates():
     ]
     with pytest.raises(Exception):
         ensure_unique_keys(rows2, ["OrderNumber", "ArticleCode"], "orders")
+
+
+def test_sql_server_stale_delete_batches_large_ranges():
+    """Non supera il limite SQL Server di 2.100 parametri per comando."""
+    class Cursor:
+        def __init__(self):
+            self.commands = []
+            self.rowcount = 0
+
+        def execute(self, sql, params):
+            self.commands.append((sql, params))
+            self.rowcount = (len(params) - 2) // 2 if sql.startswith("DELETE") else 0
+            return self
+
+        def fetchall(self):
+            return [(2000000000 + i, f"2026-01-{(i % 28) + 1:02d} 00:00:00") for i in range(1100)]
+
+    class Connection:
+        def __init__(self):
+            self.cur = Cursor()
+
+        def cursor(self):
+            return self.cur
+
+    backend = SqlServerBackend({"server": "test", "database": "test"})
+    backend.conn = Connection()
+    deleted = backend._stale_delete(
+        "ingressi", ["cdStore", "data"], [], "[anno] >= ? AND [anno] <= ?", [2026, 2026]
+    )
+
+    commands = backend.conn.cur.commands
+    assert len(commands) == 4  # SELECT + 3 DELETE da massimo 500 chiavi
+    assert deleted == 1100
+    for _sql, params in commands[1:]:
+        assert len(params) <= 1002  # 500 chiavi x 2 parametri + 2 parametri range
